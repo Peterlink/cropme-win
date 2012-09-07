@@ -141,7 +141,7 @@ void Screenshot::slot_checkReply()
     QByteArray answer = reply->readAll();
     if(!reply->error())
     {
-        QDesktopServices::openUrl(QString("http://cropme.ru/%1.png").arg(QString(answer)));
+        QDesktopServices::openUrl(QString(answer));
     }
     reply->deleteLater();
     close();

@@ -1,7 +1,5 @@
 QT += gui network
 
-#CONFIG += console
-
 HEADERS = screenshot.h
 SOURCES = main.cpp\
             screenshot.cpp
