@@ -8,7 +8,7 @@ Screenshot::Screenshot(QWidget *parent) : QWidget(parent)
     setCursor(crosshair);
     setAutoFillBackground(false);
     setWindowState(Qt::WindowActive | Qt::WindowFullScreen);
-    setWindowOpacity(0.01);
+    setWindowOpacity(0.1);
     enableSelectionFrame = false;
 }
 
