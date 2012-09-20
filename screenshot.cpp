@@ -3,13 +3,16 @@
 
 Screenshot::Screenshot(QWidget *parent) : QWidget(parent)
 {
-    server = QUrl(QString("http://cropme.ru/upload"));
+    server = QString("cropme.ru");
     crosshair = QCursor(Qt::CrossCursor);
     setCursor(crosshair);
     setAutoFillBackground(false);
     setWindowState(Qt::WindowActive | Qt::WindowFullScreen);
     setWindowOpacity(0.1);
     enableSelectionFrame = false;
+
+    connect(&socket, SIGNAL(connected()), this, SLOT(slot_onConnect()));
+    connect(&socket, SIGNAL(readyRead()), this, SLOT(slot_onReadyRead()));
 }
 
 void Screenshot::normalizeSelectionFrame()
@@ -103,11 +106,28 @@ void Screenshot::slot_getScreenshot()
     normalizeSelectionFrame();
     screen = screen.copy(selectionFrame);
 
+    int compression = 50;
+
     buffer.open(QIODevice::WriteOnly);
-    screen.save(&buffer, "PNG", 100);
+    if(!screen.save(&buffer, "PNG", compression))
+    {
+        QMessageBox::warning(this, tr("Error"), tr("unknown problem with buffer"));
+    }
     buffer.close();
 
+    socket.connectToHost(server, 80);
+}
+
+void Screenshot::slot_onConnect()
+{
     postImage();
+    qWarning("posted %d", buffer.size());
+}
+
+void Screenshot::slot_onReadyRead()
+{
+    checkReply();
+    qWarning("checked");
 }
 
 void Screenshot::postImage()
@@ -121,28 +141,49 @@ void Screenshot::postImage()
     imageData.replace("/", "%2F");
     imageData.replace("+", "%2B");
 
-    request.setUrl(server);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    QByteArray headers;
+    headers.append("POST /upload HTTP/1.1\r\n");
+    headers.append("Content-Type: application/x-www-form-urlencoded\r\n");
+    headers.append("Content-Length: ");
+    headers.append(QString::number(imageData.size()).toAscii());
+    headers.append("\r\n");
+    headers.append("Connection: Keep-Alive\r\n");
+    headers.append("Accept-Encoding: gzip\r\n");
+    headers.append("Host: cropme.ru\r\n\r\n");
 
-    reply = manager.post(request, imageData.data());
-    connect(reply, SIGNAL(finished()), this, SLOT(slot_replyFinished()));
-    connect(reply, SIGNAL(readyRead()), this, SLOT(slot_checkReply()));
-}
-
-
-
-void Screenshot::slot_replyFinished()
-{
-//    reply->deleteLater();
-}
-
-void Screenshot::slot_checkReply()
-{
-    QByteArray answer = reply->readAll();
-    if(!reply->error())
+    if(socket.isWritable())
     {
-        QDesktopServices::openUrl(QString(answer));
+        socket.write(headers);
+        socket.write(imageData);
+        socket.flush();
     }
-    reply->deleteLater();
+    else
+    {
+        QMessageBox::warning(this, tr("Error"), tr("unwritable socket"));
+    }
+}
+
+void Screenshot::checkReply()
+{
+    qWarning("waiting for data");
+    socket.waitForReadyRead();
+    QByteArray answer = socket.readLine();
+    qWarning("!%s", QString(answer).toAscii().data());
+    if(answer.contains("200 OK"))
+    {
+        while(socket.bytesAvailable())
+        {
+            QByteArray possibleLink = socket.readLine();
+            if(possibleLink.contains(server.toAscii()))
+            {
+                QDesktopServices::openUrl(QString(possibleLink));
+            }
+        }
+    }
+    else
+    {
+        QMessageBox::warning(this, tr("Error"), tr(answer));
+    }
+    socket.close();
     close();
 }

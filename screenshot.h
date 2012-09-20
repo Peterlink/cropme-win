@@ -8,11 +8,10 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QRect>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
+#include <QTcpSocket>
 #include <QMessageBox>
 #include <QBuffer>
+#include <QUrl>
 #include <QDesktopServices>
 
 class Screenshot : public QWidget
@@ -23,10 +22,8 @@ public:
     explicit Screenshot(QWidget *parent = 0);
 
 private:
-    QUrl server;
-    QNetworkAccessManager manager;
-    QNetworkRequest request;
-    QNetworkReply *reply;
+    QString server;
+    QTcpSocket socket;
 
     QCursor crosshair;
     QPixmap screen;
@@ -39,6 +36,7 @@ private:
 
     void normalizeSelectionFrame();
     void postImage();
+    void checkReply();
 protected:
     void paintEvent(QPaintEvent *e);
     void mousePressEvent(QMouseEvent *);
@@ -50,8 +48,8 @@ signals:
 
 public slots:
     void slot_getScreenshot();
-    void slot_replyFinished();
-    void slot_checkReply();
+    void slot_onConnect();
+    void slot_onReadyRead();
 };
 
 #endif
