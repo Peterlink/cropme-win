@@ -2,6 +2,7 @@
 #define SCREENSHOT_H
 
 #include <QApplication>
+#include <QDateTime>
 #include <QTimer>
 #include <QDesktopWidget>
 #include <QWidget>
@@ -9,10 +10,13 @@
 #include <QKeyEvent>
 #include <QRect>
 #include <QTcpSocket>
+#include <QNetworkProxy>
 #include <QMessageBox>
 #include <QBuffer>
 #include <QUrl>
 #include <QDesktopServices>
+
+#include "logwriter.h"
 
 class Screenshot : public QWidget
 {
@@ -22,6 +26,9 @@ public:
     explicit Screenshot(QWidget *parent = 0);
 
 private:
+    LogWriter logger;
+
+    QNetworkProxy proxy;
     QString server;
     QTcpSocket socket;
 
@@ -32,7 +39,12 @@ private:
     QRect selectionFrame;
     QString fileName;
     QBuffer buffer;
+    QByteArray headers;
     bool enableSelectionFrame;
+
+    QFile logFile;
+
+    void setupProxy();
 
     void normalizeSelectionFrame();
     void postImage();
@@ -45,6 +57,7 @@ protected:
 
 signals:
     void signal_screenArea(const QRect&);
+    void signal_printToLog(QString line);
 
 public slots:
     void slot_getScreenshot();
