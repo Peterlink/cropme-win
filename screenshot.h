@@ -15,6 +15,7 @@
 #include <QBuffer>
 #include <QUrl>
 #include <QDesktopServices>
+#include <QClipboard>
 
 #include "logwriter.h"
 

@@ -68,11 +68,11 @@ void Screenshot::setupProxy()
                         proxy.setPort(80);
                     }
 
-                    socket.setProxy(proxy);
+                    proxy.setType(QNetworkProxy::HttpProxy);
+                    QNetworkProxy::setApplicationProxy(proxy);
                 }
                 else
                 {
-                    qWarning("proxy disabled");
                     proxyConfig.close();
                     return;
                 }
@@ -266,32 +266,37 @@ void Screenshot::postImage()
 
 void Screenshot::checkReply()
 {
+    QByteArray possibleLink;
+    bool linkAccepted = false;
+    QClipboard *clipboard = QApplication::clipboard();
+    unsigned int fragmentationCounter = 0;
+
     emit signal_printToLog("Header received");
 
     QByteArray answer = socket.readLine();
     if(answer.contains("200 OK"))
     {
-        while(socket.bytesAvailable())
+        do
         {
-            QByteArray possibleLink = socket.readLine();
-            if(possibleLink.contains(server.toAscii()))
+            while(socket.bytesAvailable())
             {
-                emit signal_printToLog("Browser 1 opening");
-
-                QDesktopServices::openUrl(QString(possibleLink));
+                possibleLink = socket.readLine();
+                if(possibleLink.contains(server.toAscii()))
+                {
+                    linkAccepted = true;
+                    emit signal_printToLog(QString("Fragmentation %1").arg(fragmentationCounter));
+                }
+            }
+            if(!linkAccepted)
+            {
+                socket.waitForReadyRead(1000);
+                fragmentationCounter++;
             }
         }
-        socket.waitForReadyRead(1000);
-        while(socket.bytesAvailable())
-        {
-            QByteArray possibleLink = socket.readLine();
-            if(possibleLink.contains(server.toAscii()))
-            {
-                emit signal_printToLog("Browser 2 opening");
+        while(!linkAccepted || fragmentationCounter > 3);
 
-                QDesktopServices::openUrl(QString(possibleLink));
-            }
-        }
+        QDesktopServices::openUrl(QString(possibleLink));
+        clipboard->setText(possibleLink);
     }
     else
     {
