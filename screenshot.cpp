@@ -244,8 +244,8 @@ void Screenshot::postImage()
     headers.append("Content-Length: ");
     headers.append(QString::number(imageData.size()).toAscii());
     headers.append("\r\n");
-    headers.append("Connection: Keep-Alive\r\n");
-    headers.append("Accept-Encoding: gzip\r\n");
+    headers.append("Connection: close\r\n");
+    headers.append("Accept-Encoding: identity\r\n");
     headers.append("Host: cropme.ru\r\n\r\n");
 
     emit signal_printToLog("Request formed, sending");
@@ -274,6 +274,7 @@ void Screenshot::checkReply()
     emit signal_printToLog("Header received");
 
     QByteArray answer = socket.readLine();
+
     if(answer.contains("200 OK"))
     {
         do
@@ -281,6 +282,7 @@ void Screenshot::checkReply()
             while(socket.bytesAvailable())
             {
                 possibleLink = socket.readLine();
+
                 if(possibleLink.contains(server.toAscii()))
                 {
                     linkAccepted = true;
