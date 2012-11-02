@@ -52,9 +52,12 @@ private:
     void checkReply();
 protected:
     void paintEvent(QPaintEvent *e);
+
     void mousePressEvent(QMouseEvent *);
     void mouseMoveEvent(QMouseEvent *);
     void mouseReleaseEvent(QMouseEvent *);
+
+    void keyPressEvent(QKeyEvent *e);
 
 signals:
     void signal_screenArea(const QRect&);

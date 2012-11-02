@@ -180,6 +180,15 @@ void Screenshot::mouseReleaseEvent(QMouseEvent *e)
     QTimer::singleShot(100, this, SLOT(slot_getScreenshot()));
 }
 
+void Screenshot::keyPressEvent(QKeyEvent *e)
+{
+    if(e->key() == Qt::Key_Escape)
+    {
+        emit signal_printToLog("Escape pressed");
+        close();
+    }
+}
+
 void Screenshot::slot_getScreenshot()
 {
     emit signal_printToLog("Screen grabbing started");
