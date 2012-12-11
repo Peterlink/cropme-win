@@ -2,36 +2,23 @@
 #define SCREENSHOT_H
 
 #include <QApplication>
-#include <QDateTime>
 #include <QTimer>
 #include <QDesktopWidget>
 #include <QWidget>
 #include <QMouseEvent>
-#include <QKeyEvent>
 #include <QRect>
-#include <QTcpSocket>
-#include <QNetworkProxy>
 #include <QMessageBox>
 #include <QBuffer>
-#include <QUrl>
-#include <QDesktopServices>
-#include <QClipboard>
-
-#include "logwriter.h"
 
 class Screenshot : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit Screenshot(QWidget *parent = 0);
+    QBuffer *buffer;
+    explicit Screenshot(QWidget *parent = 0, quint32 screenNumber = 0);
 
 private:
-    LogWriter logger;
-
-    QNetworkProxy proxy;
-    QString server;
-    QTcpSocket socket;
 
     QCursor crosshair;
     QPixmap screen;
@@ -39,13 +26,10 @@ private:
     QPoint endPoint;
     QRect selectionFrame;
     QString fileName;
-    QBuffer buffer;
+
     QByteArray headers;
     bool enableSelectionFrame;
-
-    QFile logFile;
-
-    void setupProxy();
+    quint32 screenNumber;
 
     void normalizeSelectionFrame();
     void postImage();
@@ -57,16 +41,15 @@ protected:
     void mouseMoveEvent(QMouseEvent *);
     void mouseReleaseEvent(QMouseEvent *);
 
-    void keyPressEvent(QKeyEvent *e);
+
 
 signals:
     void signal_screenArea(const QRect&);
     void signal_printToLog(QString line);
+    void signal_postToServer();
 
 public slots:
     void slot_getScreenshot();
-    void slot_onConnect();
-    void slot_onReadyRead();
 };
 
 #endif

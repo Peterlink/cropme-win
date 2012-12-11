@@ -1,93 +1,19 @@
 #include "screenshot.h"
 #include <QPainter>
 
-Screenshot::Screenshot(QWidget *parent) : QWidget(parent)
+Screenshot::Screenshot(QWidget *parent, quint32 screenNumber) : QWidget(parent)
 {
     emit signal_printToLog("Cropme started");
 
-    setupProxy();
-
+    this->screenNumber = screenNumber;
     headers.reserve(4*0x1000);
-    server = QString("cropme.ru");
+
     crosshair = QCursor(Qt::CrossCursor);
     setCursor(crosshair);
     setAutoFillBackground(false);
     setWindowState(Qt::WindowActive | Qt::WindowFullScreen);
     setWindowOpacity(0.1);
     enableSelectionFrame = false;
-
-    connect(&socket, SIGNAL(connected()), this, SLOT(slot_onConnect()));
-    connect(&socket, SIGNAL(readyRead()), this, SLOT(slot_onReadyRead()));
-
-    connect(this, SIGNAL(signal_printToLog(QString)), &logger, SLOT(slot_writeLine(QString)));
-}
-
-void Screenshot::setupProxy()
-{
-    QFile proxyConfig("proxy.ini");
-    if(proxyConfig.exists())
-    {
-        if(proxyConfig.open(QIODevice::ReadOnly))
-        {
-            QString firstLine = proxyConfig.readLine();
-            if(firstLine.contains("proxy_enabled"))
-            {
-                if(firstLine.contains("true") && !firstLine.contains("false"))
-                {
-                    QString secondLine = proxyConfig.readLine();
-
-                    QRegExp ipv4RegExp("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}");
-                    QRegExp URLRegExp("(https?:\/\/)?(([0-9a-z_!~*'().&=+$%-]+:)?[0-9a-z_!~*'().&=+$%-]+@)?(([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-z_!~*'()-]+\.)*([0-9a-z][0-9a-z-]{0,61})+[0-9a-z]\.[a-z]{2,6})(:[0-9]{1,4})?((\/?)|(\/[0-9a-z_!~*'().;?:@&=+$,%#-]+)+\/?)");
-                    QRegExp portNumRegExp("[1-9]{1}[0-9]{0,4}");
-
-                    if(secondLine.contains(ipv4RegExp))
-                    {
-                        secondLine = ipv4RegExp.cap(0);
-                        proxy.setHostName(secondLine);
-                    }
-                    else if(secondLine.contains(URLRegExp))
-                    {
-                        secondLine = URLRegExp.cap(0);
-                        proxy.setHostName(secondLine);
-                    }
-                    else
-                    {
-                        QMessageBox::warning(this, tr("Error"), tr("bad IP or URL."));
-                        proxyConfig.close();
-                        return;
-                    }
-
-                    QString thirdLine = proxyConfig.readLine();
-                    if(thirdLine.contains(portNumRegExp))
-                    {
-                        thirdLine = portNumRegExp.cap(0);
-                        proxy.setPort(thirdLine.toUShort());
-                    }
-                    else
-                    {
-                        proxy.setPort(80);
-                    }
-
-                    proxy.setType(QNetworkProxy::HttpProxy);
-                    QNetworkProxy::setApplicationProxy(proxy);
-                }
-                else
-                {
-                    proxyConfig.close();
-                    return;
-                }
-            }
-            else
-            {
-                QMessageBox::warning(this, tr("Error"), tr("Wrong file format."));
-                proxyConfig.close();
-            }
-        }
-        else
-        {
-            QMessageBox::warning(this, tr("Warning"), tr("Failed to open proxy config file. Check permissions."));
-        }
-    }
 }
 
 void Screenshot::normalizeSelectionFrame()
@@ -180,20 +106,18 @@ void Screenshot::mouseReleaseEvent(QMouseEvent *e)
     QTimer::singleShot(100, this, SLOT(slot_getScreenshot()));
 }
 
-void Screenshot::keyPressEvent(QKeyEvent *e)
-{
-    if(e->key() == Qt::Key_Escape)
-    {
-        emit signal_printToLog("Escape pressed");
-        close();
-    }
-}
-
 void Screenshot::slot_getScreenshot()
 {
-    emit signal_printToLog("Screen grabbing started");
+    emit signal_printToLog(QString("Screen %1 grabbing started").arg(screenNumber));
 
-    screen =  QPixmap::grabWindow(QApplication::desktop()->winId());
+    QDesktopWidget *desktop = QApplication::desktop();
+    QRect geometry = desktop->screenGeometry(screenNumber);
+
+    screen =  QPixmap::grabWindow(desktop->winId(),
+                                  geometry.left(),
+                                  geometry.top(),
+                                  geometry.width(),
+                                  geometry.height());
 
     emit signal_printToLog("Screen grabbing ended");
 
@@ -209,115 +133,16 @@ void Screenshot::slot_getScreenshot()
 
     emit signal_printToLog("Bufferization started");
 
-    buffer.open(QIODevice::WriteOnly);
-    if(!screen.save(&buffer, "PNG", compression))
+    buffer->open(QIODevice::WriteOnly);
+    if(!screen.save(buffer, "PNG", compression))
     {
         QMessageBox::warning(this, tr("Error"), tr("unknown problem with buffer"));
     }
-    buffer.close();
+    buffer->close();
 
     emit signal_printToLog("Bufferization ended, connection started");
 
-    socket.connectToHost(server, 80);
+    emit signal_postToServer();
 }
 
-void Screenshot::slot_onConnect()
-{
-    postImage();
-}
 
-void Screenshot::slot_onReadyRead()
-{
-    checkReply();
-}
-
-void Screenshot::postImage()
-{
-    emit signal_printToLog("Buffer reading");
-
-    buffer.open(QIODevice::ReadOnly);
-    QByteArray base64image(buffer.readAll().toBase64());
-    buffer.close();
-
-    emit signal_printToLog(QString("Buffer read: %1").arg(base64image.size()));
-
-    emit signal_printToLog("Forming request");
-
-    QByteArray imageData("image=");
-    imageData.append(base64image);
-    imageData.replace("/", "%2F");
-    imageData.replace("+", "%2B");
-
-    headers.append("POST /upload HTTP/1.1\r\n");
-    headers.append("Content-Type: application/x-www-form-urlencoded\r\n");
-    headers.append("Content-Length: ");
-    headers.append(QString::number(imageData.size()).toAscii());
-    headers.append("\r\n");
-    headers.append("Connection: close\r\n");
-    headers.append("Accept-Encoding: identity\r\n");
-    headers.append("Host: cropme.ru\r\n\r\n");
-
-    emit signal_printToLog("Request formed, sending");
-
-    if(socket.isWritable())
-    {
-        socket.write(headers);
-        socket.write(imageData);
-        socket.flush();
-
-        emit signal_printToLog("All sent");
-    }
-    else
-    {
-        QMessageBox::warning(this, tr("Error"), tr("unwritable socket"));
-    }
-}
-
-void Screenshot::checkReply()
-{
-    QByteArray possibleLink;
-    bool linkAccepted = false;
-    QClipboard *clipboard = QApplication::clipboard();
-    unsigned int fragmentationCounter = 0;
-
-    emit signal_printToLog("Header received");
-
-    QByteArray answer = socket.readLine();
-
-    if(answer.contains("200 OK"))
-    {
-        do
-        {
-            while(socket.bytesAvailable())
-            {
-                possibleLink = socket.readLine();
-
-                if(possibleLink.contains(server.toAscii()))
-                {
-                    linkAccepted = true;
-                    emit signal_printToLog(QString("Fragmentation %1").arg(fragmentationCounter));
-                }
-            }
-            if(!linkAccepted)
-            {
-                socket.waitForReadyRead(1000);
-                fragmentationCounter++;
-            }
-        }
-        while(!linkAccepted || fragmentationCounter > 3);
-
-        QDesktopServices::openUrl(QString(possibleLink));
-        clipboard->setText(possibleLink);
-    }
-    else
-    {
-        QMessageBox::warning(this, tr("Error"), tr(answer));
-    }
-    socket.close();
-
-    emit signal_printToLog("The end");
-
-    logger.slot_closeLogFile();
-
-    close();
-}
