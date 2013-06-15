@@ -25,6 +25,7 @@ ScreenManager::ScreenManager(QVector<QRect> geometrys, QObject *parent) : QObjec
 
     connect(&socket, SIGNAL(connected()), this, SLOT(slot_onConnect()));
     connect(&socket, SIGNAL(readyRead()), this, SLOT(slot_onReadyRead()));
+    connect(&socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(slot_onSocketError(QAbstractSocket::SocketError)));
 
     setupProxy();
 }
@@ -205,4 +206,9 @@ void ScreenManager::checkReply()
 
     emit signal_printToLog("The end");
     logger.slot_closeLogFile();
+}
+
+void ScreenManager::slot_onSocketError(QAbstractSocket::SocketError error)
+{
+    QMessageBox::warning(0, tr("Error"), socket.errorString());
 }

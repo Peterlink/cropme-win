@@ -55,6 +55,7 @@ public slots:
     void slot_onScreenshotReady();
     void slot_onConnect();
     void slot_onReadyRead();
+    void slot_onSocketError(QAbstractSocket::SocketError error);
 };
 
 #endif // SCREENMANAGER_H
