@@ -1,6 +1,8 @@
 #include "screenmanager.h"
 
-ScreenManager::ScreenManager(QVector<QRect> geometrys, QObject *parent) : QObject(parent)
+ScreenManager::ScreenManager(QVector<QRect> geometrys, QObject *parent)
+    :QObject(parent),
+    answerReceived(false)
 {
     screensTotal = geometrys.size();
     server = QString("cropme.ru");
@@ -158,7 +160,6 @@ void ScreenManager::postImage()
 void ScreenManager::checkReply()
 {
     QByteArray possibleLink;
-    bool linkAccepted = false;
     QClipboard *clipboard = QApplication::clipboard();
     unsigned int fragmentationCounter = 0;
 
@@ -176,17 +177,17 @@ void ScreenManager::checkReply()
 
                 if(possibleLink.contains(server.toAscii()))
                 {
-                    linkAccepted = true;
+                    answerReceived = true;
                     emit signal_printToLog(QString("Fragmentation %1").arg(fragmentationCounter));
                 }
             }
-            if(!linkAccepted)
+            if(!answerReceived)
             {
-                socket.waitForReadyRead(1000);
+                socket.waitForReadyRead(DEFAULT_ANSWER_TIMEOUT);
                 fragmentationCounter++;
             }
         }
-        while(!linkAccepted || fragmentationCounter > 3);
+        while(!answerReceived || fragmentationCounter > MAX_FRAGMENTATION);
 
         QDesktopServices::openUrl(QString(possibleLink));
         clipboard->setText(possibleLink);
@@ -210,5 +211,8 @@ void ScreenManager::checkReply()
 
 void ScreenManager::slot_onSocketError(QAbstractSocket::SocketError error)
 {
-    QMessageBox::warning(0, tr("Error"), socket.errorString());
+    if(!answerReceived)
+    {
+        QMessageBox::warning(0, tr("Error"), socket.errorString());
+    }
 }

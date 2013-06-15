@@ -27,6 +27,8 @@ class ScreenManager : public QObject
     Q_OBJECT
 
     const static quint16 DEFAULT_PROXY_PORT = 80;
+    const static quint16 DEFAULT_ANSWER_TIMEOUT = 1000;
+    const static quint16 MAX_FRAGMENTATION = 3;
 
     QString server;
 
@@ -39,6 +41,8 @@ class ScreenManager : public QObject
     Screenshot** widgets;
     QBuffer buffer;
     QByteArray headers;
+
+    bool answerReceived;
 
     void setupProxy();
     void postImage();
