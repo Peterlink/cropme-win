@@ -25,6 +25,8 @@ ScreenManager::ScreenManager(QVector<QRect> geometrys, QObject *parent) : QObjec
 
     connect(&socket, SIGNAL(connected()), this, SLOT(slot_onConnect()));
     connect(&socket, SIGNAL(readyRead()), this, SLOT(slot_onReadyRead()));
+
+    setupProxy();
 }
 
 void ScreenManager::keyPressEvent(QKeyEvent *e)
@@ -45,68 +47,47 @@ void ScreenManager::keyPressEvent(QKeyEvent *e)
 
 void ScreenManager::setupProxy()
 {
-    QFile proxyConfig("proxy.ini");
-    if(proxyConfig.exists())
+    QSettings proxyConfig("proxy.ini", QSettings::IniFormat);
+
+    emit signal_printToLog(tr("Proxy config file: %1").arg(proxyConfig.fileName()));
+
+    if(proxyConfig.value("proxy/proxy_enabled").toString() == "true")
     {
-        if(proxyConfig.open(QIODevice::ReadOnly))
+        QUrl proxyUrl = proxyConfig.value("proxy/proxy").toUrl();
+        if(proxyUrl.isValid())
         {
-            QString firstLine = proxyConfig.readLine();
-            if(firstLine.contains("proxy_enabled"))
+            emit signal_printToLog(tr("Setting proxy to: %1").arg(proxyUrl.toString()));
+
+            proxy.setHostName(proxyUrl.toString());
+
+            quint16 proxyPort = proxyConfig.value("proxy/port").toUInt();
+            if(proxyPort)
             {
-                if(firstLine.contains("true") && !firstLine.contains("false"))
-                {
-                    QString secondLine = proxyConfig.readLine();
+                emit signal_printToLog(tr("Setting proxy port to: %1").arg(proxyPort));
 
-                    QRegExp ipv4RegExp("[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}");
-                    QRegExp URLRegExp("(https?:\/\/)?(([0-9a-z_!~*'().&=+$%-]+:)?[0-9a-z_!~*'().&=+$%-]+@)?(([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-z_!~*'()-]+\.)*([0-9a-z][0-9a-z-]{0,61})+[0-9a-z]\.[a-z]{2,6})(:[0-9]{1,4})?((\/?)|(\/[0-9a-z_!~*'().;?:@&=+$,%#-]+)+\/?)");
-                    QRegExp portNumRegExp("[1-9]{1}[0-9]{0,4}");
-
-                    if(secondLine.contains(ipv4RegExp))
-                    {
-                        secondLine = ipv4RegExp.cap(0);
-                        proxy.setHostName(secondLine);
-                    }
-                    else if(secondLine.contains(URLRegExp))
-                    {
-                        secondLine = URLRegExp.cap(0);
-                        proxy.setHostName(secondLine);
-                    }
-                    else
-                    {
-                        QMessageBox::warning(0, tr("Error"), tr("bad IP or URL."));
-                        proxyConfig.close();
-                        return;
-                    }
-
-                    QString thirdLine = proxyConfig.readLine();
-                    if(thirdLine.contains(portNumRegExp))
-                    {
-                        thirdLine = portNumRegExp.cap(0);
-                        proxy.setPort(thirdLine.toUShort());
-                    }
-                    else
-                    {
-                        proxy.setPort(80);
-                    }
-
-                    proxy.setType(QNetworkProxy::HttpProxy);
-                    QNetworkProxy::setApplicationProxy(proxy);
-                }
-                else
-                {
-                    proxyConfig.close();
-                    return;
-                }
+                proxy.setPort(proxyPort);
             }
             else
             {
-                QMessageBox::warning(0, tr("Error"), tr("Wrong file format."));
-                proxyConfig.close();
+                emit signal_printToLog(tr("Setting proxy port to default"));
+
+                proxy.setPort(DEFAULT_PROXY_PORT);
             }
+
+            if(proxyConfig.value("proxy/authorization").toString() == "true")
+            {
+                emit signal_printToLog(tr("Setting proxy 'login:pass'"));
+
+                proxy.setUser(proxyConfig.value("proxy/login").toString());
+                proxy.setPassword(proxyConfig.value("proxy/pass").toString());
+            }
+
+            proxy.setType(QNetworkProxy::HttpProxy);
+            QNetworkProxy::setApplicationProxy(proxy);
         }
         else
         {
-            QMessageBox::warning(0, tr("Warning"), tr("Failed to open proxy config file. Check permissions."));
+            QMessageBox::warning(0, tr("Error"), tr("Wrong proxy URL: %1").arg(proxyUrl.toString()));
         }
     }
 }

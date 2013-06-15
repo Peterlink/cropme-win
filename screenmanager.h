@@ -18,12 +18,15 @@
 #include <QClipboard>
 #include <QObject>
 #include <QList>
+#include <QSettings>
 #include "screenshot.h"
 #include "logwriter.h"
 
 class ScreenManager : public QObject
 {
     Q_OBJECT
+
+    const static quint16 DEFAULT_PROXY_PORT = 80;
 
     QString server;
 
